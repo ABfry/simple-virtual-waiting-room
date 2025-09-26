@@ -67,16 +67,16 @@ services:
       retries: 5
       start_period: 5s
 
-  sample_app:
+  sample-target-app:
     <<: *service-defaults
     build:
-      context: ./apps/sample-app
+      context: ./apps/sample-target-app
       dockerfile: Dockerfile
-    image: "${COMPOSE_PROJECT_NAME:-simple-virtual-waiting-room}-sample:dev"
+    image: "${COMPOSE_PROJECT_NAME:-simple-virtual-waiting-room}-sample-target:dev"
     profiles:
       - demo
     ports:
-      - "${SAMPLE_APP_PORT:-3000}:80"
+      - "${TARGET_APP_PORT:-3000}:80"
     depends_on:
       waiting_room:
         condition: service_started
