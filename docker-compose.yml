@@ -1,0 +1,90 @@
+name: simple-virtual-waiting-room
+
+x-service-defaults: &service-defaults
+  restart: unless-stopped
+  networks:
+    - backend
+
+x-app-env: &app-env
+  APP_PORT: ${APP_PORT:-8080}
+  WAITING_ROOM_CAPACITY: ${WAITING_ROOM_CAPACITY:-50}
+  WAITING_ROOM_TTL_SECONDS: ${WAITING_ROOM_TTL_SECONDS:-900}
+  REDIS_ADDR: ${REDIS_ADDR:-valkey:6379}
+  REDIS_DB: ${VALKEY_DB:-0}
+  REDIS_PASSWORD: ${VALKEY_PASSWORD:-}
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+
+services:
+  waiting_room:
+    <<: *service-defaults
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: "${COMPOSE_PROJECT_NAME:-simple-virtual-waiting-room}-api:dev"
+    read_only: true
+    command:
+      - /app
+    env_file:
+      - .env
+    environment: *app-env
+    ports:
+      - "${APP_HOST:-127.0.0.1}:${APP_PORT:-8080}:8080"
+    depends_on:
+      valkey:
+        condition: service_healthy
+    develop:
+      watch:
+        - action: rebuild
+          path: ./cmd
+        - action: rebuild
+          path: ./internal
+        - action: rebuild
+          path: go.mod
+        - action: rebuild
+          path: Dockerfile
+    tmpfs:
+      - /tmp
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  valkey:
+    <<: *service-defaults
+    image: valkey/valkey:8.0-alpine
+    ports:
+      - "${VALKEY_HOST:-127.0.0.1}:${VALKEY_PORT:-6379}:6379"
+    volumes:
+      - valkey-data:/data
+    healthcheck:
+      test:
+        - CMD
+        - valkey-cli
+        - ping
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  sample_app:
+    <<: *service-defaults
+    build:
+      context: ./apps/sample-app
+      dockerfile: Dockerfile
+    image: "${COMPOSE_PROJECT_NAME:-simple-virtual-waiting-room}-sample:dev"
+    profiles:
+      - demo
+    ports:
+      - "${SAMPLE_APP_PORT:-3000}:80"
+    depends_on:
+      waiting_room:
+        condition: service_started
+
+networks:
+  backend:
+    name: "${COMPOSE_PROJECT_NAME:-simple-virtual-waiting-room}-backend"
+
+volumes:
+  valkey-data:
+    name: "${COMPOSE_PROJECT_NAME:-simple-virtual-waiting-room}-valkey-data"
