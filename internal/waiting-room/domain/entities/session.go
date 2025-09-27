@@ -16,12 +16,35 @@ const (
 	SessionStatusClosed
 )
 
+type SessionEndReason int
+
+const (
+	SessionEndReasonUnknown SessionEndReason = iota
+	SessionEndReasonUserExit
+	SessionEndReasonTimeout
+	SessionEndReasonForceClosed
+)
+
+func (r SessionEndReason) String() string {
+	switch r {
+	case SessionEndReasonUserExit:
+		return "user_exit"
+	case SessionEndReasonTimeout:
+		return "timeout"
+	case SessionEndReasonForceClosed:
+		return "force_closed"
+	default:
+		return "unknown"
+	}
+}
+
 type Session struct {
 	ID        uuid.UUID
 	UserID    uuid.UUID
 	StartedAt time.Time
-	ExitedAt  *time.Time
+	EndedAt   *time.Time
 	Status    SessionStatus
+	Reason    SessionEndReason
 }
 
 func NewSession(userID uuid.UUID, startedAt time.Time) Session {
@@ -30,27 +53,30 @@ func NewSession(userID uuid.UUID, startedAt time.Time) Session {
 		UserID:    userID,
 		StartedAt: startedAt,
 		Status:    SessionStatusActive,
+		Reason:    SessionEndReasonUnknown,
 	}
 }
 
-func (s *Session) Close(at time.Time) {
+func (s *Session) End(reason SessionEndReason, at time.Time) {
 	if at.IsZero() {
-		s.ExitedAt = nil
+		s.EndedAt = nil
 	} else {
-		exited := at
-		s.ExitedAt = &exited
+		ended := at
+		s.EndedAt = &ended
 	}
-	s.Status = SessionStatusClosed
+	s.Reason = reason
+	s.Status = mapSessionStatusFromReason(reason)
 }
 
-func (s *Session) Timeout(at time.Time) {
-	if at.IsZero() {
-		s.ExitedAt = nil
-	} else {
-		exited := at
-		s.ExitedAt = &exited
+func mapSessionStatusFromReason(reason SessionEndReason) SessionStatus {
+	switch reason {
+	case SessionEndReasonTimeout:
+		return SessionStatusTimeout
+	case SessionEndReasonUserExit, SessionEndReasonForceClosed:
+		return SessionStatusClosed
+	default:
+		return SessionStatusUnknown
 	}
-	s.Status = SessionStatusTimeout
 }
 
 func (s Session) IsActive() bool {

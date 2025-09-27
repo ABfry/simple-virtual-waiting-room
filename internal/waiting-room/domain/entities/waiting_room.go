@@ -10,7 +10,7 @@ type WaitingRoom struct {
 	ID       uuid.UUID
 	Capacity int
 	TTL      time.Duration
-	Queue    []uuid.UUID
+	Queue    []uuid.UUID // stores user IDs in FIFO order
 }
 
 func NewWaitingRoom(id uuid.UUID, capacity int, ttl time.Duration) WaitingRoom {
@@ -22,8 +22,18 @@ func NewWaitingRoom(id uuid.UUID, capacity int, ttl time.Duration) WaitingRoom {
 	}
 }
 
-func (w *WaitingRoom) Enqueue(ticketID uuid.UUID) {
-	w.Queue = append(w.Queue, ticketID)
+func (w *WaitingRoom) Enqueue(userID uuid.UUID) {
+	w.Queue = append(w.Queue, userID)
+}
+
+func (w *WaitingRoom) Peek(limit int) []uuid.UUID {
+	if limit <= 0 || len(w.Queue) == 0 {
+		return nil
+	}
+	if limit > len(w.Queue) {
+		limit = len(w.Queue)
+	}
+	return append([]uuid.UUID(nil), w.Queue[:limit]...)
 }
 
 func (w *WaitingRoom) Dequeue(count int) []uuid.UUID {
@@ -38,9 +48,9 @@ func (w *WaitingRoom) Dequeue(count int) []uuid.UUID {
 	return batch
 }
 
-func (w *WaitingRoom) Remove(ticketID uuid.UUID) bool {
+func (w *WaitingRoom) Remove(userID uuid.UUID) bool {
 	for idx, id := range w.Queue {
-		if id == ticketID {
+		if id == userID {
 			w.Queue = append(w.Queue[:idx], w.Queue[idx+1:]...)
 			return true
 		}
