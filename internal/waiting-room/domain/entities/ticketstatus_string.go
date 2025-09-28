@@ -9,14 +9,15 @@ func _() {
 	// Re-run the stringer command to generate them again.
 	var x [1]struct{}
 	_ = x[TicketStatusUnknown-0]
-	_ = x[TicketStatusValid-1]
-	_ = x[TicketStatusUsed-2]
-	_ = x[TicketStatusExpired-3]
+	_ = x[TicketStatusWaiting-1]
+	_ = x[TicketStatusAdmitted-2]
+	_ = x[TicketStatusUsed-3]
+	_ = x[TicketStatusExpired-4]
 }
 
-const _TicketStatus_name = "UnknownValidUsedExpired"
+const _TicketStatus_name = "UnknownWaitingAdmittedUsedExpired"
 
-var _TicketStatus_index = [...]uint8{0, 7, 12, 16, 23}
+var _TicketStatus_index = [...]uint8{0, 7, 14, 22, 26, 33}
 
 func (i TicketStatus) String() string {
 	if i < 0 || i >= TicketStatus(len(_TicketStatus_index)-1) {
