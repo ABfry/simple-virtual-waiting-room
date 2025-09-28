@@ -13,6 +13,7 @@ type TicketLifecycle interface {
 	Issue(userID uuid.UUID, ttl time.Duration, now time.Time) entities.Ticket
 	Validate(ticket entities.Ticket, now time.Time) error
 	ValidateAndUse(ticket *entities.Ticket, now time.Time) error
-	MarkEntered(ticket *entities.Ticket)
+	MarkWaiting(ticket *entities.Ticket)
+	MarkAdmitted(ticket *entities.Ticket)
 	MarkExpired(ticket *entities.Ticket)
 }
