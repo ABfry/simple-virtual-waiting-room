@@ -11,7 +11,8 @@ type TicketStatus int
 
 const (
 	TicketStatusUnknown TicketStatus = iota
-	TicketStatusValid
+	TicketStatusWaiting
+	TicketStatusAdmitted
 	TicketStatusUsed
 	TicketStatusExpired
 )
@@ -30,12 +31,20 @@ func NewTicket(userID uuid.UUID, lifetime time.Duration, issuedAt time.Time) Tic
 		UserID:    userID,
 		CreatedAt: issuedAt,
 		ExpiresAt: issuedAt.Add(lifetime),
-		Status:    TicketStatusValid,
+		Status:    TicketStatusWaiting,
 	}
 }
 
 func (t Ticket) IsExpired(reference time.Time) bool {
 	return !t.ExpiresAt.IsZero() && (reference.After(t.ExpiresAt) || reference.Equal(t.ExpiresAt))
+}
+
+func (t *Ticket) MarkWaiting() {
+	t.Status = TicketStatusWaiting
+}
+
+func (t *Ticket) MarkAdmitted() {
+	t.Status = TicketStatusAdmitted
 }
 
 func (t *Ticket) MarkUsed() {
