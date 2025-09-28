@@ -1,10 +1,12 @@
 name: simple-virtual-waiting-room
 
+# 共通設定
 x-service-defaults: &service-defaults
   restart: unless-stopped
   networks:
     - backend
 
+# 環境変数
 x-app-env: &app-env
   APP_PORT: ${APP_PORT:-8080}
   WAITING_ROOM_CAPACITY: ${WAITING_ROOM_CAPACITY:-50}
@@ -15,6 +17,7 @@ x-app-env: &app-env
   LOG_LEVEL: ${LOG_LEVEL:-info}
 
 services:
+  # 待機室API
   waiting_room:
     <<: *service-defaults
     build:
@@ -67,6 +70,7 @@ services:
       retries: 5
       start_period: 5s
 
+  # 入場制限をするサンプル対象アプリケーション
   sample-target-app:
     <<: *service-defaults
     build:
