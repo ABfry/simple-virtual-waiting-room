@@ -23,6 +23,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      target: prod
     image: "${COMPOSE_PROJECT_NAME:-simple-virtual-waiting-room}-api:dev"
     read_only: true
     command:
@@ -52,6 +53,31 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+  waiting_room-dev:
+    <<: *service-defaults
+    profiles:
+      - dev
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dev
+    image: "${COMPOSE_PROJECT_NAME:-simple-virtual-waiting-room}-api:dev-hot"
+    command:
+      - air
+      - -c
+      - .air.toml
+    env_file:
+      - .env
+    environment: *app-env
+    working_dir: /app
+    volumes:
+      - ./:/app
+    depends_on:
+      valkey:
+        condition: service_healthy
+    tmpfs:
+      - /tmp
 
   valkey:
     <<: *service-defaults

@@ -15,7 +15,19 @@ COPY . .
 
 RUN --mount=type=cache,target="/root/.cache/go-build" CGO_ENABLED=0 go build -ldflags "-s -w" -o /app ./cmd/waiting-room/main.go
 
-FROM gcr.io/distroless/static-debian12:nonroot
+FROM golang:1.24.5-alpine AS dev
+
+WORKDIR /app
+
+ENV GOCACHE=/root/.cache/go-build
+
+RUN --mount=type=cache,target="/root/.cache/go-build" \
+  apk add --no-cache git && \
+  go install github.com/cosmtrek/air@latest
+
+CMD [ "air", "-c", ".air.toml" ]
+
+FROM gcr.io/distroless/static-debian12:nonroot AS prod
 
 ENV TZ=Asia/Tokyo
 
