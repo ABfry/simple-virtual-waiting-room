@@ -4,6 +4,9 @@ generate:
 up:
 	docker compose up --build --watch
 
+dev:
+	docker compose --profile dev up --build waiting_room-dev valkey
+
 test:
 	GOEXPERIMENT=synctest go test -race -parallel $(shell nproc) ./...
 
