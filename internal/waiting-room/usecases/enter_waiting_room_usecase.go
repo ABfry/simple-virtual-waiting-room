@@ -21,6 +21,7 @@ type RoomLocker interface {
 var errQueueNotEmpty = errors.New("待機列が存在するため即時入場できません")
 
 type EnterWaitingRoomUseCase struct {
+	waitingRoomID         uuid.UUID
 	waitingRoomRepository repositories.WaitingRoomRepository
 	userRepository        repositories.UserRepository
 	sessionRepository     repositories.SessionRepository
@@ -31,6 +32,7 @@ type EnterWaitingRoomUseCase struct {
 }
 
 func NewEnterWaitingRoomUseCase(
+	waitingRoomID uuid.UUID,
 	waitingRoomRepository repositories.WaitingRoomRepository,
 	userRepository repositories.UserRepository,
 	sessionRepository repositories.SessionRepository,
@@ -40,6 +42,7 @@ func NewEnterWaitingRoomUseCase(
 	roomLocker RoomLocker,
 ) *EnterWaitingRoomUseCase {
 	return &EnterWaitingRoomUseCase{
+		waitingRoomID:         waitingRoomID,
 		waitingRoomRepository: waitingRoomRepository,
 		userRepository:        userRepository,
 		sessionRepository:     sessionRepository,
@@ -68,7 +71,7 @@ func (u *EnterWaitingRoomUseCase) Execute(ctx context.Context, in input.EnterWai
 	now := in.EffectiveTime()
 
 	// 待機室のキャパや現在のキュー状況を取得
-	room, err := u.waitingRoomRepository.GetByID(ctx, in.WaitingRoomID)
+	room, err := u.waitingRoomRepository.GetByID(ctx, u.waitingRoomID)
 	if err != nil {
 		return result, err
 	}
