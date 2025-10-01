@@ -7,10 +7,9 @@ import (
 )
 
 type EnterWaitingRoomInput struct {
-	WaitingRoomID uuid.UUID
-	UserID        uuid.UUID
-	UserName      *string
-	Now           time.Time
+	UserID   uuid.UUID
+	UserName *string
+	Now      time.Time
 }
 
 func (i EnterWaitingRoomInput) EffectiveTime() time.Time {
