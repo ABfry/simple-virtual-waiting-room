@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/ABfry/simple-virtual-waiting-room/internal/waiting-room/domain/repositories"
+	domainservices "github.com/ABfry/simple-virtual-waiting-room/internal/waiting-room/domain/services"
 	"github.com/ABfry/simple-virtual-waiting-room/internal/waiting-room/usecases/output"
 )
 
@@ -56,6 +57,27 @@ func (p *EnterWaitingRoomPresenter) presentError(w http.ResponseWriter, err erro
 		case errors.Is(err, repositories.ErrNotFound):
 			status = http.StatusNotFound
 			code = "not_found"
+		case errors.Is(err, domainservices.ErrTicketExpired):
+			status = http.StatusConflict
+			code = "ticket_expired"
+		case errors.Is(err, domainservices.ErrTicketAlreadyUsed):
+			status = http.StatusConflict
+			code = "ticket_already_used"
+		case errors.Is(err, domainservices.ErrTicketNotFound):
+			status = http.StatusNotFound
+			code = "ticket_not_found"
+		case errors.Is(err, domainservices.ErrQueueFull):
+			status = http.StatusTooManyRequests
+			code = "waiting_room_full"
+		case errors.Is(err, domainservices.ErrUserNotQueued):
+			status = http.StatusBadRequest
+			code = "user_not_queued"
+		case errors.Is(err, domainservices.ErrInvalidWaitingRoom):
+			status = http.StatusBadRequest
+			code = "invalid_waiting_room"
+		case errors.Is(err, domainservices.ErrInvalidTicketStatus):
+			status = http.StatusBadRequest
+			code = "invalid_ticket_status"
 		default:
 			status = http.StatusInternalServerError
 			code = "internal_error"

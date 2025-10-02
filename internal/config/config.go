@@ -49,12 +49,25 @@ func Load() (Config, error) {
 	}
 	cfg.WaitingRoomCap = capacity
 
-	ttlStr := getEnvWithDefault("WAITING_ROOM_TICKET_TTL", "5m")
-	ttl, err := time.ParseDuration(ttlStr)
-	if err != nil {
-		return cfg, fmt.Errorf("invalid WAITING_ROOM_TICKET_TTL: %w", err)
+	ttlSecondsStr := strings.TrimSpace(os.Getenv("WAITING_ROOM_TTL_SECONDS"))
+	if ttlSecondsStr != "" {
+		seconds, err := strconv.Atoi(ttlSecondsStr)
+		if err != nil {
+			return cfg, fmt.Errorf("invalid WAITING_ROOM_TTL_SECONDS: %w", err)
+		}
+		if seconds <= 0 {
+			cfg.TicketTTL = 0
+		} else {
+			cfg.TicketTTL = time.Duration(seconds) * time.Second
+		}
+	} else {
+		ttlStr := getEnvWithDefault("WAITING_ROOM_TICKET_TTL", "5m")
+		ttl, err := time.ParseDuration(ttlStr)
+		if err != nil {
+			return cfg, fmt.Errorf("invalid WAITING_ROOM_TICKET_TTL: %w", err)
+		}
+		cfg.TicketTTL = ttl
 	}
-	cfg.TicketTTL = ttl
 
 	shutdownStr := getEnvWithDefault("HTTP_SHUTDOWN_TIMEOUT", "10s")
 	shutdown, err := time.ParseDuration(shutdownStr)
