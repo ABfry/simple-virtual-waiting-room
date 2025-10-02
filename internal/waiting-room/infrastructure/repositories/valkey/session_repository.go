@@ -106,7 +106,51 @@ func (r *SessionRepository) activeSetKey() string {
 }
 
 func (r *SessionRepository) CountActive(ctx context.Context) (int64, error) {
-	return r.client.SCard(ctx, r.activeSetKey()).Result()
+	members, err := r.client.SMembers(ctx, r.activeSetKey()).Result()
+	if err != nil {
+		if err == redis.Nil {
+			return 0, nil
+		}
+		return 0, err
+	}
+	var count int64
+	for _, member := range members {
+		sessionID, parseErr := uuid.Parse(member)
+		if parseErr != nil {
+			if remErr := r.client.SRem(ctx, r.activeSetKey(), member).Err(); remErr != nil {
+				return 0, remErr
+			}
+			continue
+		}
+		exists, err := r.client.Exists(ctx, r.key(sessionID)).Result()
+		if err != nil {
+			return 0, err
+		}
+		if exists == 0 {
+			if err := r.client.SRem(ctx, r.activeSetKey(), member).Err(); err != nil {
+				return 0, err
+			}
+			continue
+		}
+		count++
+	}
+	return count, nil
+}
+
+func (r *SessionRepository) RefreshTTL(ctx context.Context, session *entities.Session, ttl time.Duration) error {
+	if ttl <= 0 || session == nil {
+		return nil
+	}
+	if err := r.client.Expire(ctx, r.key(session.ID), ttl).Err(); err != nil {
+		return err
+	}
+	if err := r.client.Expire(ctx, r.activeKey(session.UserID), ttl).Err(); err != nil {
+		return err
+	}
+	if err := r.client.SAdd(ctx, r.activeSetKey(), session.ID.String()).Err(); err != nil {
+		return err
+	}
+	return nil
 }
 
 type sessionRecord struct {
