@@ -12,15 +12,17 @@ import (
 
 // Config はアプリ全体の設定値を保持する。
 type Config struct {
-	HTTPAddr        string
-	WaitingRoomID   uuid.UUID
-	WaitingRoomCap  int
-	TicketTTL       time.Duration
-	ShutdownTimeout time.Duration
-	ValkeyAddr      string
-	ValkeyPassword  string
-	ValkeyDB        int
-	ValkeyNamespace string
+	HTTPAddr                string
+	WaitingRoomID           uuid.UUID
+	WaitingRoomCap          int
+	TicketTTL               time.Duration
+	ShutdownTimeout         time.Duration
+	TargetURL               string
+	TargetMaxActiveSessions int
+	ValkeyAddr              string
+	ValkeyPassword          string
+	ValkeyDB                int
+	ValkeyNamespace         string
 }
 
 // Load は環境変数から設定を読み込み、Config に詰める。
@@ -62,6 +64,15 @@ func Load() (Config, error) {
 		shutdown = 10 * time.Second
 	}
 	cfg.ShutdownTimeout = shutdown
+
+	cfg.TargetURL = getEnvWithDefault("TARGET_URL", "http://127.0.0.1:3000")
+
+	maxSessionsStr := getEnvWithDefault("TARGET_MAX_ACTIVE_SESSIONS", "0")
+	maxSessions, err := strconv.Atoi(maxSessionsStr)
+	if err != nil {
+		return cfg, fmt.Errorf("invalid TARGET_MAX_ACTIVE_SESSIONS: %w", err)
+	}
+	cfg.TargetMaxActiveSessions = maxSessions
 
 	cfg.ValkeyAddr = getEnvWithDefault("VALKEY_ADDR", "localhost:6379")
 	cfg.ValkeyPassword = os.Getenv("VALKEY_PASSWORD")

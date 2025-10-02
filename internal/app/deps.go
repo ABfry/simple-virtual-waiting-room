@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 
@@ -18,6 +19,8 @@ import (
 
 // Dependencies はアプリの依存関係を束ねる。
 type Dependencies struct {
+	RootHandler             http.Handler
+	WaitingRoomHandler      http.Handler
 	EnterWaitingRoomHandler http.Handler
 	redisClient             *redis.Client
 }
@@ -57,14 +60,18 @@ func NewDependencies(ctx context.Context, cfg config.Config) (*Dependencies, err
 		ticketRepo,
 		ticketLifecycle,
 		sessionPolicy,
-		// TODO: 分散ロックを導入する際は RoomLocker 実装を渡す
 		nil,
+		cfg.TargetMaxActiveSessions,
 	)
 
 	presenter := presenters.NewEnterWaitingRoomPresenter()
 	controller := controllers.NewEnterWaitingRoomController(enterUseCase, presenter)
+	rootController := controllers.NewEnterWaitingRoomWebController(enterUseCase, cfg.TargetURL, "")
+	waitingPageHandler := controllers.NewWaitingRoomPageHandler(5 * time.Second)
 
 	return &Dependencies{
+		RootHandler:             rootController,
+		WaitingRoomHandler:      waitingPageHandler,
 		EnterWaitingRoomHandler: controller,
 		redisClient:             redisClient,
 	}, nil
