@@ -4,6 +4,9 @@ generate:
 up:
 	docker compose up --build --watch
 
+up-demo:
+	docker compose --profile demo up --build sample-target-app waiting_room valkey
+
 dev:
 	docker compose --profile dev up --build waiting_room-dev valkey
 
