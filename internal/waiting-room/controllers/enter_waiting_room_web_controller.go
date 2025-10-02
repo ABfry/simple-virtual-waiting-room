@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	_ "embed"
 	"errors"
 	"html/template"
 	"net/http"
@@ -19,8 +20,12 @@ const (
 	defaultWaitingPath = "/waiting-room"
 )
 
-// EnterWaitingRoomWebController はブラウザアクセス時に待機室判定を行い、
-// 入場可能ならターゲットへ、待機中なら待機ページへリダイレクトさせる。
+//go:embed templates/waiting_room.html
+var waitingPageHTML string
+
+var waitingPageTemplate = template.Must(template.New("waiting-page").Parse(waitingPageHTML))
+
+// ブラウザアクセス時に待機室判定を行い、入場可能ならターゲットへ、待機中なら待機ページへリダイレクト
 type EnterWaitingRoomWebController struct {
 	useCase     *usecases.EnterWaitingRoomUseCase
 	targetURL   string
@@ -105,7 +110,7 @@ func buildWaitingURL(waitingPath string, out output.EnterWaitingRoomOutput) stri
 	return u.String()
 }
 
-// NewWaitingRoomPageHandler は待機中ユーザー向けの簡易ページを返すハンドラを生成する。
+// 待機中ユーザー向けの簡易ページを返すハンドラを生成
 func NewWaitingRoomPageHandler(refreshInterval time.Duration) http.Handler {
 	refreshSeconds := int(refreshInterval.Seconds())
 	if refreshSeconds <= 0 {
@@ -146,71 +151,3 @@ type waitingPageViewModel struct {
 	TicketID          string
 	NewlyIssuedTicket bool
 }
-
-var waitingPageTemplate = template.Must(template.New("waiting-page").Parse(`<!DOCTYPE html>
-<html lang="ja">
-<head>
-<meta charset="utf-8">
-<title>待機室</title>
-<meta http-equiv="refresh" content="{{.RefreshSeconds}};url=/">
-<style>
-body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    background-color: #f4f4f5;
-    color: #1f2933;
-    margin: 0;
-    padding: 0;
-}
-main {
-    max-width: 480px;
-    margin: 80px auto;
-    background: #ffffff;
-    border-radius: 12px;
-    box-shadow: 0 10px 25px rgba(15, 23, 42, 0.08);
-    padding: 32px;
-    text-align: center;
-}
-h1 {
-    margin-top: 0;
-    font-size: 1.8rem;
-}
-p {
-    line-height: 1.6;
-}
-.ticket {
-    margin: 24px 0 8px;
-    padding: 12px;
-    background: #eef2ff;
-    border-radius: 8px;
-    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-}
-a.button {
-    display: inline-block;
-    margin-top: 16px;
-    padding: 10px 16px;
-    background: #2563eb;
-    color: #ffffff;
-    text-decoration: none;
-    border-radius: 6px;
-}
-a.button:hover {
-    background: #1d4ed8;
-}
-</style>
-</head>
-<body>
-<main>
-    <h1>ただいま入場待ちです</h1>
-    {{if .NewlyIssuedTicket}}
-    <p>待機チケットを発行しました。順番が来るまでしばらくお待ちください。</p>
-    {{else}}
-    <p>順番が来るまでお待ちください。ページは自動的に更新されます。</p>
-    {{end}}
-    {{if .HasTicket}}
-    <p class="ticket">チケットID: {{.TicketID}}</p>
-    {{end}}
-    <p>自動的に <strong>{{.RefreshSeconds}} 秒後</strong> に状態を確認します。</p>
-    <a class="button" href="/">今すぐ状況を確認する</a>
-</main>
-</body>
-</html>`))
