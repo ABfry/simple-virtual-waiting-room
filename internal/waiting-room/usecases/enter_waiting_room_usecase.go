@@ -18,7 +18,10 @@ type RoomLocker interface {
 	WithLock(ctx context.Context, roomID uuid.UUID, fn func(ctx context.Context) error) error
 }
 
-var errQueueNotEmpty = errors.New("待機列が存在するため即時入場できません")
+var (
+	errQueueNotEmpty   = errors.New("待機列が存在するため即時入場できません")
+	errCapacityReached = errors.New("ターゲットサービスの定員に達しています")
+)
 
 type EnterWaitingRoomUseCase struct {
 	waitingRoomID         uuid.UUID
@@ -29,6 +32,7 @@ type EnterWaitingRoomUseCase struct {
 	ticketLifecycle       services.TicketLifecycle
 	sessionPolicy         services.SessionPolicy
 	roomLocker            RoomLocker
+	maxActiveSessions     int
 }
 
 func NewEnterWaitingRoomUseCase(
@@ -40,6 +44,7 @@ func NewEnterWaitingRoomUseCase(
 	ticketLifecycle services.TicketLifecycle,
 	sessionPolicy services.SessionPolicy,
 	roomLocker RoomLocker,
+	maxActiveSessions int,
 ) *EnterWaitingRoomUseCase {
 	return &EnterWaitingRoomUseCase{
 		waitingRoomID:         waitingRoomID,
@@ -50,6 +55,7 @@ func NewEnterWaitingRoomUseCase(
 		ticketLifecycle:       ticketLifecycle,
 		sessionPolicy:         sessionPolicy,
 		roomLocker:            roomLocker,
+		maxActiveSessions:     maxActiveSessions,
 	}
 }
 
@@ -149,9 +155,28 @@ func (u *EnterWaitingRoomUseCase) Execute(ctx context.Context, in input.EnterWai
 			return result, nil
 		}
 
-		// 順番が来たチケットなのでロック下で利用・セッション発行・キュー整理を行う
+		// 順番が来たチケットなのでロック下で定員を確認しつつ利用・セッション発行・キュー整理を行う
 		var session entities.Session
 		err := u.withRoomLock(ctx, room.ID, func(lockCtx context.Context) error {
+			if err := u.ensureCapacity(lockCtx); err != nil {
+				if errors.Is(err, errCapacityReached) {
+					u.ticketLifecycle.MarkWaiting(ticket)
+					if err := u.ticketRepository.Save(lockCtx, ticket); err != nil {
+						return err
+					}
+					ensureQueued(room, in.UserID)
+					if err := u.waitingRoomRepository.Save(lockCtx, room); err != nil {
+						return err
+					}
+					if user.Status != entities.UserStatusWaiting {
+						user.ResetToWaiting(now)
+						if err := u.userRepository.Save(lockCtx, user); err != nil {
+							return err
+						}
+					}
+				}
+				return err
+			}
 			if err := u.ticketLifecycle.ValidateAndUse(ticket, now); err != nil {
 				return err
 			}
@@ -173,6 +198,11 @@ func (u *EnterWaitingRoomUseCase) Execute(ctx context.Context, in input.EnterWai
 			return nil
 		})
 		if err != nil {
+			if errors.Is(err, errCapacityReached) {
+				result.Outcome = output.EnterWaitingRoomOutcomeRedirectWaitingRoom
+				result.TicketID = &ticket.ID
+				return result, nil
+			}
 			return result, err
 		}
 		result.Outcome = output.EnterWaitingRoomOutcomeEnterTarget
@@ -189,6 +219,9 @@ func (u *EnterWaitingRoomUseCase) Execute(ctx context.Context, in input.EnterWai
 			if room.Len() > 0 {
 				return errQueueNotEmpty
 			}
+			if err := u.ensureCapacity(lockCtx); err != nil {
+				return err
+			}
 			session = u.sessionPolicy.Create(in.UserID, now)
 			if err := u.sessionRepository.Save(lockCtx, &session); err != nil {
 				return err
@@ -204,7 +237,7 @@ func (u *EnterWaitingRoomUseCase) Execute(ctx context.Context, in input.EnterWai
 			return nil
 		})
 		if err != nil {
-			if errors.Is(err, errQueueNotEmpty) {
+			if errors.Is(err, errQueueNotEmpty) || errors.Is(err, errCapacityReached) {
 				return u.issueTicket(ctx, in, room, user, now)
 			}
 			return result, err
@@ -269,4 +302,18 @@ func ensureQueued(room *entities.WaitingRoom, userID uuid.UUID) {
 		}
 	}
 	room.Enqueue(userID)
+}
+
+func (u *EnterWaitingRoomUseCase) ensureCapacity(ctx context.Context) error {
+	if u.maxActiveSessions <= 0 {
+		return nil
+	}
+	count, err := u.sessionRepository.CountActive(ctx)
+	if err != nil {
+		return err
+	}
+	if count >= int64(u.maxActiveSessions) {
+		return errCapacityReached
+	}
+	return nil
 }

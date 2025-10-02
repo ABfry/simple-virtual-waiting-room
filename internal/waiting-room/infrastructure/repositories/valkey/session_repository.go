@@ -79,8 +79,14 @@ func (r *SessionRepository) Save(ctx context.Context, session *entities.Session)
 		if err := r.client.Set(ctx, r.activeKey(session.UserID), session.ID.String(), 0).Err(); err != nil {
 			return err
 		}
+		if err := r.client.SAdd(ctx, r.activeSetKey(), session.ID.String()).Err(); err != nil {
+			return err
+		}
 	} else {
 		if err := r.client.Del(ctx, r.activeKey(session.UserID)).Err(); err != nil {
+			return err
+		}
+		if err := r.client.SRem(ctx, r.activeSetKey(), session.ID.String()).Err(); err != nil {
 			return err
 		}
 	}
@@ -93,6 +99,14 @@ func (r *SessionRepository) key(id uuid.UUID) string {
 
 func (r *SessionRepository) activeKey(userID uuid.UUID) string {
 	return fmt.Sprintf("%ssession:active:%s", r.namespace, userID.String())
+}
+
+func (r *SessionRepository) activeSetKey() string {
+	return fmt.Sprintf("%ssession:active", r.namespace)
+}
+
+func (r *SessionRepository) CountActive(ctx context.Context) (int64, error) {
+	return r.client.SCard(ctx, r.activeSetKey()).Result()
 }
 
 type sessionRecord struct {

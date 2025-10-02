@@ -12,4 +12,5 @@ type SessionRepository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (*entities.Session, error)
 	GetActiveByUserID(ctx context.Context, userID uuid.UUID) (*entities.Session, error)
 	Save(ctx context.Context, session *entities.Session) error
+	CountActive(ctx context.Context) (int64, error)
 }
