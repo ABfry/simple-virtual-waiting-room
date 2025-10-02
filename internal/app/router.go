@@ -10,6 +10,7 @@ import (
 func NewRouter(deps *Dependencies) http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("/waiting-room/enter", deps.EnterWaitingRoomHandler)
+	mux.Handle("/waiting-room/session/heartbeat", deps.SessionHeartbeatHandler)
 	mux.Handle("/waiting-room", deps.WaitingRoomHandler)
 	mux.Handle("/", deps.RootHandler)
 	mux.HandleFunc("GET /healthz", healthHandler)

@@ -33,6 +33,7 @@ type EnterWaitingRoomUseCase struct {
 	sessionPolicy         services.SessionPolicy
 	roomLocker            RoomLocker
 	maxActiveSessions     int
+	sessionTTL            time.Duration
 }
 
 func NewEnterWaitingRoomUseCase(
@@ -45,6 +46,7 @@ func NewEnterWaitingRoomUseCase(
 	sessionPolicy services.SessionPolicy,
 	roomLocker RoomLocker,
 	maxActiveSessions int,
+	sessionTTL time.Duration,
 ) *EnterWaitingRoomUseCase {
 	return &EnterWaitingRoomUseCase{
 		waitingRoomID:         waitingRoomID,
@@ -56,6 +58,7 @@ func NewEnterWaitingRoomUseCase(
 		sessionPolicy:         sessionPolicy,
 		roomLocker:            roomLocker,
 		maxActiveSessions:     maxActiveSessions,
+		sessionTTL:            sessionTTL,
 	}
 }
 
@@ -97,6 +100,9 @@ func (u *EnterWaitingRoomUseCase) Execute(ctx context.Context, in input.EnterWai
 
 	// 有効なセッションがあるなら入場済みなのでそのまま返す
 	if session, err := u.sessionRepository.GetActiveByUserID(ctx, in.UserID); err == nil {
+		if err := u.refreshSession(ctx, session); err != nil {
+			return result, err
+		}
 		result.Outcome = output.EnterWaitingRoomOutcomeEnterTarget
 		result.SessionID = &session.ID
 		return result, nil
@@ -130,6 +136,38 @@ func (u *EnterWaitingRoomUseCase) Execute(ctx context.Context, in input.EnterWai
 			result.Outcome = output.EnterWaitingRoomOutcomeRedirectWaitingRoom
 			result.TicketID = &ticket.ID
 			return result, nil
+		}
+
+		// 枠が空いている場合は待機チケットを昇格させる
+		if ticket.Status == entities.TicketStatusWaiting {
+			front := room.Peek(1)
+			if len(front) > 0 && front[0] == in.UserID {
+				err := u.withRoomLock(ctx, room.ID, func(lockCtx context.Context) error {
+					if err := u.ensureCapacity(lockCtx); err != nil {
+						return err
+					}
+					u.ticketLifecycle.MarkAdmitted(ticket)
+					return u.ticketRepository.Save(lockCtx, ticket)
+				})
+				if err != nil {
+					if errors.Is(err, errCapacityReached) {
+						ensureQueued(room, in.UserID)
+						if err := u.waitingRoomRepository.Save(ctx, room); err != nil {
+							return result, err
+						}
+						if user.Status != entities.UserStatusWaiting {
+							user.ResetToWaiting(now)
+							if err := u.userRepository.Save(ctx, user); err != nil {
+								return result, err
+							}
+						}
+						result.Outcome = output.EnterWaitingRoomOutcomeRedirectWaitingRoom
+						result.TicketID = &ticket.ID
+						return result, nil
+					}
+					return result, err
+				}
+			}
 		}
 
 		if ticket.Status != entities.TicketStatusAdmitted {
@@ -184,6 +222,9 @@ func (u *EnterWaitingRoomUseCase) Execute(ctx context.Context, in input.EnterWai
 			if err := u.sessionRepository.Save(lockCtx, &session); err != nil {
 				return err
 			}
+			if err := u.refreshSession(lockCtx, &session); err != nil {
+				return err
+			}
 			room.Remove(in.UserID)
 			if err := u.waitingRoomRepository.Save(lockCtx, room); err != nil {
 				return err
@@ -224,6 +265,9 @@ func (u *EnterWaitingRoomUseCase) Execute(ctx context.Context, in input.EnterWai
 			}
 			session = u.sessionPolicy.Create(in.UserID, now)
 			if err := u.sessionRepository.Save(lockCtx, &session); err != nil {
+				return err
+			}
+			if err := u.refreshSession(lockCtx, &session); err != nil {
 				return err
 			}
 			room.Remove(in.UserID)
@@ -316,4 +360,26 @@ func (u *EnterWaitingRoomUseCase) ensureCapacity(ctx context.Context) error {
 		return errCapacityReached
 	}
 	return nil
+}
+
+func (u *EnterWaitingRoomUseCase) refreshSession(ctx context.Context, session *entities.Session) error {
+	if session == nil || u.sessionTTL <= 0 {
+		return nil
+	}
+	return u.sessionRepository.RefreshTTL(ctx, session, u.sessionTTL)
+}
+
+// KeepSessionAlive はアクティブセッションの TTL を延長し続ける。
+func (u *EnterWaitingRoomUseCase) KeepSessionAlive(ctx context.Context, sessionID uuid.UUID) error {
+	if u.sessionTTL <= 0 {
+		return nil
+	}
+	session, err := u.sessionRepository.GetByID(ctx, sessionID)
+	if err != nil {
+		return err
+	}
+	if !session.IsActive() {
+		return repositories.ErrNotFound
+	}
+	return u.refreshSession(ctx, session)
 }

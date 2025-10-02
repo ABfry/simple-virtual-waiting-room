@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -13,4 +14,5 @@ type SessionRepository interface {
 	GetActiveByUserID(ctx context.Context, userID uuid.UUID) (*entities.Session, error)
 	Save(ctx context.Context, session *entities.Session) error
 	CountActive(ctx context.Context) (int64, error)
+	RefreshTTL(ctx context.Context, session *entities.Session, ttl time.Duration) error
 }
