@@ -22,6 +22,7 @@ type Dependencies struct {
 	RootHandler             http.Handler
 	WaitingRoomHandler      http.Handler
 	EnterWaitingRoomHandler http.Handler
+	SessionHeartbeatHandler http.Handler
 	redisClient             *redis.Client
 }
 
@@ -62,17 +63,20 @@ func NewDependencies(ctx context.Context, cfg config.Config) (*Dependencies, err
 		sessionPolicy,
 		nil,
 		cfg.TargetMaxActiveSessions,
+		cfg.SessionTTL,
 	)
 
 	presenter := presenters.NewEnterWaitingRoomPresenter()
 	controller := controllers.NewEnterWaitingRoomController(enterUseCase, presenter)
 	rootController := controllers.NewEnterWaitingRoomWebController(enterUseCase, cfg.TargetURL, "")
+	heartbeatController := controllers.NewSessionHeartbeatController(enterUseCase)
 	waitingPageHandler := controllers.NewWaitingRoomPageHandler(5 * time.Second)
 
 	return &Dependencies{
 		RootHandler:             rootController,
 		WaitingRoomHandler:      waitingPageHandler,
 		EnterWaitingRoomHandler: controller,
+		SessionHeartbeatHandler: heartbeatController,
 		redisClient:             redisClient,
 	}, nil
 }

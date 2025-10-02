@@ -17,6 +17,7 @@ x-app-env: &app-env
   LOG_LEVEL: ${LOG_LEVEL:-info}
   TARGET_URL: ${TARGET_URL:-http://127.0.0.1:3000}
   TARGET_MAX_ACTIVE_SESSIONS: ${TARGET_MAX_ACTIVE_SESSIONS:-0}
+  SESSION_TTL_SECONDS: ${SESSION_TTL_SECONDS:-300}
 
 services:
   # 待機室API
@@ -86,8 +87,8 @@ services:
     image: valkey/valkey:8.0-alpine
     ports:
       - "${VALKEY_HOST:-127.0.0.1}:${VALKEY_PORT:-6379}:6379"
-    volumes:
-      - valkey-data:/data
+    # volumes:
+    #   - valkey-data:/data
     healthcheck:
       test:
         - CMD
@@ -117,6 +118,6 @@ networks:
   backend:
     name: "${COMPOSE_PROJECT_NAME:-simple-virtual-waiting-room}-backend"
 
-volumes:
-  valkey-data:
-    name: "${COMPOSE_PROJECT_NAME:-simple-virtual-waiting-room}-valkey-data"
+# volumes:
+#   valkey-data:
+#     name: "${COMPOSE_PROJECT_NAME:-simple-virtual-waiting-room}-valkey-data"

@@ -19,6 +19,7 @@ type Config struct {
 	ShutdownTimeout         time.Duration
 	TargetURL               string
 	TargetMaxActiveSessions int
+	SessionTTL              time.Duration
 	ValkeyAddr              string
 	ValkeyPassword          string
 	ValkeyDB                int
@@ -73,6 +74,17 @@ func Load() (Config, error) {
 		return cfg, fmt.Errorf("invalid TARGET_MAX_ACTIVE_SESSIONS: %w", err)
 	}
 	cfg.TargetMaxActiveSessions = maxSessions
+
+	sessionTTLSecondsStr := getEnvWithDefault("SESSION_TTL_SECONDS", "300")
+	sessionTTLSeconds, err := strconv.Atoi(sessionTTLSecondsStr)
+	if err != nil {
+		return cfg, fmt.Errorf("invalid SESSION_TTL_SECONDS: %w", err)
+	}
+	if sessionTTLSeconds <= 0 {
+		cfg.SessionTTL = 0
+	} else {
+		cfg.SessionTTL = time.Duration(sessionTTLSeconds) * time.Second
+	}
 
 	cfg.ValkeyAddr = getEnvWithDefault("VALKEY_ADDR", "localhost:6379")
 	cfg.ValkeyPassword = os.Getenv("VALKEY_PASSWORD")
