@@ -99,6 +99,17 @@ services:
       retries: 5
       start_period: 5s
 
+  redis-gui:
+    <<: *service-defaults
+    image: rediscommander/redis-commander:latest
+    ports:
+      - "${REDIS_GUI_HOST:-127.0.0.1}:${REDIS_GUI_PORT:-8081}:8081"
+    environment:
+      - REDIS_HOSTS=${REDIS_GUI_CONNECTION:-main:valkey:6379}
+    depends_on:
+      valkey:
+        condition: service_started
+
   # 入場制限をするサンプル対象アプリケーション
   sample-target-app:
     <<: *service-defaults
@@ -106,8 +117,6 @@ services:
       context: ./apps/sample-target-app
       dockerfile: Dockerfile
     image: "${COMPOSE_PROJECT_NAME:-simple-virtual-waiting-room}-sample-target:dev"
-    profiles:
-      - demo
     ports:
       - "${TARGET_APP_PORT:-3000}:80"
     depends_on:
